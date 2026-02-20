@@ -1145,7 +1145,7 @@
           <div class="kpi-sub" id="kpiUnrealizedPct">--</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Tagesveraenderung</div>
+          <div class="kpi-label">Tages&#228;nderung</div>
           <div class="kpi-value" id="kpiDayChange">--</div>
           <div class="kpi-sub" id="kpiDayChangePct">--</div>
         </div>
@@ -1158,7 +1158,7 @@
 
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab-btn active" data-tab="overview">Uebersicht</button>
+        <button class="tab-btn active" data-tab="overview">&#220;bersicht</button>
         <button class="tab-btn" data-tab="daily">Tagesentwicklung</button>
         <button class="tab-btn" data-tab="holdings">Positionen</button>
         <button class="tab-btn" data-tab="performance">Performance</button>
@@ -1214,7 +1214,7 @@
         </div>
         <div class="panel" style="margin-top: 1rem;">
           <div class="panel-header">
-            <span class="panel-title">Tagesuebersicht</span>
+            <span class="panel-title">Tages&#252;bersicht</span>
             <span class="kpi-sub" id="dailySummary">--</span>
           </div>
           <div style="overflow-x: auto;">
@@ -1246,7 +1246,7 @@
               <thead>
                 <tr>
                   <th data-sort="name" class="sorted">Name <span class="sort-arrow">&#9650;</span></th>
-                  <th data-sort="shares" class="text-right">Stueck <span class="sort-arrow">&#9650;</span></th>
+                  <th data-sort="shares" class="text-right">St&#252;ck <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="buyPrice" class="text-right">Kaufkurs <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="currentPrice" class="text-right">Kurs <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="value" class="text-right">Wert <span class="sort-arrow">&#9650;</span></th>
@@ -1397,10 +1397,10 @@
     // Dein Portfolio (Stand: 20.02.2026)
     let portfolioData = [
       { name: 'Amundi Core MSCI World UCITS ETF', ticker: 'URTH',    isin: 'IE000BI8OT95', wkn: 'ETF146', shares: 10.35, buyPrice: 139.09, currentPrice: 142.66, sector: 'ETF Welt',             dayChange: 0 },
-      { name: 'iShares MSCI EM UCITS ETF (Acc)',  ticker: 'EEM',     isin: 'IE00B4L5YC18', wkn: 'A0RPWJ', shares: 14.51, buyPrice:  48.86, currentPrice:  49.66, sector: 'ETF Schwellenlaender', dayChange: 0 },
+      { name: 'iShares MSCI EM UCITS ETF (Acc)',  ticker: 'EEM',     isin: 'IE00B4L5YC18', wkn: 'A0RPWJ', shares: 14.51, buyPrice:  48.86, currentPrice:  49.66, sector: 'ETF Schwellenl\u00e4nder', dayChange: 0 },
       { name: 'iShares Core S&P 500 UCITS ETF',   ticker: 'SPY',     isin: 'IE00B5BMR087', wkn: 'A0YEDG', shares:  1.13, buyPrice: 620.36, currentPrice: 627.07, sector: 'ETF USA',              dayChange: 0 },
       { name: 'Bitcoin',                           ticker: 'BTC',     isin: '',             wkn: '',        shares:  0.01, buyPrice: 58627.22,currentPrice: 58014.00,sector: 'Krypto',            dayChange: -1.05 },
-      { name: 'Rheinmetall AG',                    ticker: 'RHM.DEX', isin: 'DE0007030009', wkn: '703000', shares:  0.25, buyPrice: 1626.00, currentPrice: 1752.00, sector: 'Ruestung',           dayChange: 0 },
+      { name: 'Rheinmetall AG',                    ticker: 'RHM.DEX', isin: 'DE0007030009', wkn: '703000', shares:  0.25, buyPrice: 1626.00, currentPrice: 1752.00, sector: 'R\u00fcstung',           dayChange: 0 },
       { name: 'Xtrackers Euro Stoxx 50 UCITS ETF', ticker: 'FEZ',    isin: 'LU0380865021', wkn: 'DBX1ET', shares:  3.80, buyPrice: 105.24, currentPrice: 106.48, sector: 'ETF Europa',           dayChange: 0 },
     ];
 
@@ -1411,8 +1411,8 @@
       {
         source: 'Handelsblatt',
         time: 'vor 30 Min.',
-        title: 'Rheinmetall auf Allzeithoch: Ruestungsausgaben in Europa steigen weiter',
-        excerpt: 'Der Duesseldorfer Ruestungskonzern profitiert vom anhaltenden Aufbau der europaeischen Verteidigungsbudgets. Analysten erhoehen die Kursziele auf bis zu 2.100 Euro.',
+        title: 'Rheinmetall auf Allzeithoch: R\u00fcstungsausgaben in Europa steigen weiter',
+        excerpt: 'Der D\u00fcsseldorfer R\u00fcstungskonzern profitiert vom anhaltenden Aufbau der europ\u00e4ischen Verteidigungsbudgets. Analysten erh\u00f6hen die Kursziele auf bis zu 2.100 Euro.',
         tickers: ['RHM.DEX'],
         tag: 'bullish'
       },
@@ -1451,8 +1451,8 @@
       {
         source: 'Manager Magazin',
         time: 'vor 5 Std.',
-        title: 'Emerging Markets: China-Stimulus beflügelt Schwellenlaender-ETFs',
-        excerpt: 'Die chinesische Regierung kuendigt ein umfangreiches Konjunkturprogramm an. Schwellenlaender-ETFs wie der iShares MSCI EM legen deutlich zu.',
+        title: 'Emerging Markets: China-Stimulus bef\u00fcgelt Schwellenl\u00e4nder-ETFs',
+        excerpt: 'Die chinesische Regierung k\u00fcndigt ein umfangreiches Konjunkturprogramm an. Schwellenl\u00e4nder-ETFs wie der iShares MSCI EM legen deutlich zu.',
         tickers: ['EEM'],
         tag: 'bullish'
       },
@@ -1882,7 +1882,10 @@
               ticks: {
                 color: '#71717a',
                 font: { size: 10 },
-                callback: (v) => (v / 1000).toFixed(0) + 'k',
+                callback: (v) => {
+                  if (v >= 1000) return (v / 1000).toFixed(1).replace('.0', '') + 'k\u202f\u20ac';
+                  return v.toFixed(0) + '\u202f\u20ac';
+                },
               },
               border: { display: false }
             }
@@ -2218,7 +2221,7 @@
       const ctx2 = document.getElementById('monthlyChart').getContext('2d');
       if (monthChart) monthChart.destroy();
 
-      const allMonths = ['Jan', 'Feb', 'Maer', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+      const allMonths = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
       const startMonth = PORTFOLIO_START_DATE.getMonth(); // 0-indexed (Jan=0, Feb=1)
       const startYear = PORTFOLIO_START_DATE.getFullYear();
       const currentMonth = now.getMonth();
@@ -2860,6 +2863,7 @@
 
       const chartData = sorted.map(h => ({
         label: h.ticker,
+        fullName: h.name,
         value: h._dayChangeAbs,
         pct: h.dayChange,
       }));
@@ -2880,6 +2884,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          indexAxis: 'y',
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -2889,6 +2894,10 @@
               borderColor: '#27272a',
               borderWidth: 1,
               callbacks: {
+                title: (items) => {
+                  const d = chartData[items[0].dataIndex];
+                  return `${d.label}  –  ${d.fullName}`;
+                },
                 label: (ctx) => {
                   const d = chartData[ctx.dataIndex];
                   return `${(d.value >= 0 ? '+' : '')}${formatCurrency(d.value)} (${formatPct(d.pct)})`;
@@ -2897,17 +2906,17 @@
             }
           },
           scales: {
-            x: {
+            y: {
               grid: { display: false },
-              ticks: { color: '#a1a1aa', font: { size: 11, weight: 600 } },
+              ticks: { color: '#a1a1aa', font: { size: 12, weight: '600' } },
               border: { display: false }
             },
-            y: {
+            x: {
               grid: { color: 'rgba(39, 39, 42, 0.5)', drawBorder: false },
               ticks: {
                 color: '#71717a',
                 font: { size: 10 },
-                callback: (v) => (v >= 0 ? '+' : '') + formatCurrency(v),
+                callback: (v) => (v >= 0 ? '+' : '') + v.toFixed(2) + '\u202f\u20ac',
               },
               border: { display: false }
             }
