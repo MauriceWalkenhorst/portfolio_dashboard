@@ -4,9 +4,9 @@ const AV_BASE = 'https://www.alphavantage.co/query';
 
 // Ticker-Mapping fuer Yahoo Finance
 function toYahooSymbol(ticker) {
+  if (ticker.includes('-') || ticker.includes('.')) return ticker;
   const cryptoMap = { BTC: 'BTC-USD', ETH: 'ETH-USD', SOL: 'SOL-USD', ADA: 'ADA-USD', XRP: 'XRP-USD', DOT: 'DOT-USD', DOGE: 'DOGE-USD' };
   if (cryptoMap[ticker]) return cryptoMap[ticker];
-  if (ticker.endsWith('.DEX')) return ticker.replace('.DEX', '.DE');
   return ticker;
 }
 
@@ -26,26 +26,35 @@ const AV_DAYS_MAP = { '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1J': 365, '3J': 1
 async function fetchYahooHistory(ticker, period) {
   const yahooSym = toYahooSymbol(ticker);
   const p = YAHOO_PERIOD_MAP[period] || YAHOO_PERIOD_MAP['6M'];
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
-  const resp = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PortfolioDashboard/1.0)' },
-  });
-  if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`);
-  const json = await resp.json();
-  const result = json.chart && json.chart.result && json.chart.result[0];
-  if (!result || !result.timestamp) throw new Error('No Yahoo history data');
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+  let lastErr;
+  for (const host of hosts) {
+    try {
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      });
+      if (!resp.ok) { lastErr = new Error(`Yahoo ${host} HTTP ${resp.status}`); continue; }
+      const json = await resp.json();
+      const result = json.chart && json.chart.result && json.chart.result[0];
+      if (!result || !result.timestamp) { lastErr = new Error(`No data from ${host}`); continue; }
 
-  const timestamps = result.timestamp;
-  const quote = result.indicators.quote[0];
+      const timestamps = result.timestamp;
+      const quote = result.indicators.quote[0];
 
-  return timestamps.map((ts, i) => ({
-    date: new Date(ts * 1000).toISOString().slice(0, 10),
-    open: quote.open[i],
-    high: quote.high[i],
-    low: quote.low[i],
-    close: quote.close[i],
-    volume: quote.volume[i] || 0,
-  })).filter(d => d.close != null);
+      return timestamps.map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().slice(0, 10),
+        open: quote.open[i],
+        high: quote.high[i],
+        low: quote.low[i],
+        close: quote.close[i],
+        volume: quote.volume[i] || 0,
+      })).filter(d => d.close != null);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Yahoo Finance history unavailable');
 }
 
 async function fetchAvHistory(ticker, period) {
