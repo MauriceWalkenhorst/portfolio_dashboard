@@ -1660,8 +1660,9 @@
         totalDayChange += h._dayChangeAbs;
       });
 
-      filtered.forEach(h => {
-        h._weight = (h._value / totalValue) * 100;
+      // Gewichtungen fuer alle Positionen neu berechnen (basierend auf gefiltertem Total)
+      portfolioData.forEach(h => {
+        h._weight = totalValue > 0 ? (h._value / totalValue) * 100 : 0;
       });
 
       return {
@@ -1750,6 +1751,11 @@
 
       // Anzahl Positionen (gefiltert)
       document.getElementById('kpiDividends').textContent = getFilteredPortfolio().length;
+
+      // Krypto-Button aktualisieren
+      const cryptoBtn = document.getElementById('cryptoToggle');
+      cryptoBtn.innerHTML = showCrypto ? '&#8383; Krypto ausblenden' : '&#8383; Krypto einblenden';
+      cryptoBtn.classList.toggle('btn-active', showCrypto);
 
       renderPeriodButtons();
       renderCharts();
