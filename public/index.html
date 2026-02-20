@@ -1122,7 +1122,6 @@
       <div class="topbar-right">
         <span class="date-display" id="dateDisplay"></span>
         <span class="status-indicator" id="modeIndicator" title="Datenquelle"></span>
-        <button class="btn" id="cryptoToggle" onclick="toggleCrypto()">Krypto einblenden</button>
         <button class="btn" onclick="refreshLiveData()">Aktualisieren</button>
         <button class="btn" onclick="openCsvModal()">CSV Import</button>
         <button class="btn btn-primary" onclick="exportData()">Export</button>
@@ -1141,6 +1140,7 @@
           </div>
         </div>
         <div class="portfolio-sub">Gesamtportfolio &middot; <span id="portfolioAge">--</span> &middot; Letzte Aktualisierung: <span id="lastUpdate">--</span></div>
+        <button class="btn" id="cryptoToggle" onclick="toggleCrypto()" style="margin-top: 0.75rem; font-size: 0.8125rem;">&#8383; Krypto einblenden</button>
       </div>
 
       <!-- KPI Row -->
@@ -1407,7 +1407,7 @@
     function toggleCrypto() {
       showCrypto = !showCrypto;
       const btn = document.getElementById('cryptoToggle');
-      btn.textContent = showCrypto ? 'Krypto ausblenden' : 'Krypto einblenden';
+      btn.innerHTML = showCrypto ? '&#8383; Krypto ausblenden' : '&#8383; Krypto einblenden';
       btn.classList.toggle('btn-active', showCrypto);
       renderDashboard();
     }
