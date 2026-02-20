@@ -1508,25 +1508,44 @@
       if (!tickers) return false;
       try {
         const res = await fetch(`${API_BASE}/quotes?symbols=${tickers}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        liveQuotesCache = data.quotes;
+        
+        // API-Fehler anzeigen
+        if (!res.ok || data.error) {
+          console.error('API Error:', data.error || `HTTP ${res.status}`);
+          isLiveMode = false;
+          return false;
+        }
+        
+        liveQuotesCache = data.quotes || {};
+        
+        // Pruefen ob Daten zurueckgekommen sind
+        const quoteCount = Object.keys(liveQuotesCache).length;
+        if (quoteCount === 0) {
+          console.warn('No quotes returned from API. Errors:', data.errors);
+          isLiveMode = false;
+          return false;
+        }
 
         // Update portfolioData with real prices
+        let updatedCount = 0;
         portfolioData.forEach(h => {
           const q = liveQuotesCache[h.ticker];
-          if (q) {
+          if (q && q.price > 0) {
             h.currentPrice = q.price;
-            // Alpha Vantage gibt changePercent als String mit % zurueck (z.B. "1.2345%")
-            const changePercentStr = q.changePercent || '0';
-            h.dayChange = parseFloat(changePercentStr.toString().replace('%', '')) || 0;
+            // API gibt changePercent bereits als Zahl zurueck
+            h.dayChange = typeof q.changePercent === 'number' ? q.changePercent : 0;
             if (q.name && h.name.startsWith('???')) h.name = q.name;
+            updatedCount++;
           }
         });
-        isLiveMode = true;
-        return true;
+        
+        console.log(`Updated ${updatedCount}/${portfolioData.length} positions from live data`);
+        isLiveMode = updatedCount > 0;
+        return isLiveMode;
       } catch (err) {
-        console.log('Live quotes unavailable, using local data:', err.message);
+        console.error('Live quotes fetch failed:', err.message);
+        isLiveMode = false;
         return false;
       }
     }
@@ -1576,12 +1595,11 @@
     async function refreshLiveData() {
       showToast('Aktualisiere Kurse...');
       const quotesOk = await fetchLiveQuotes();
+      renderDashboard();
       if (quotesOk) {
-        renderDashboard();
-        showToast('Live-Kurse aktualisiert (Yahoo Finance)');
+        showToast('Live-Kurse aktualisiert (Alpha Vantage)');
       } else {
-        renderDashboard();
-        showToast('Offline-Modus: Demo-Daten werden angezeigt');
+        showToast('Offline-Modus: Pruefe API-Key in Vercel Umgebungsvariablen', 'error');
       }
       // Fetch news in the background
       fetchLiveNews().then(ok => {
