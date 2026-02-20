@@ -1502,27 +1502,28 @@
     let liveIndicesCache = {};
     let liveNewsCache = [];
 
-    // Fetch live quotes from Yahoo Finance via our Firebase Function
+    let liveSource = ''; // 'yahoo', 'alphavantage', 'mixed'
+
+    // Fetch live quotes (Yahoo Finance primary, Alpha Vantage backup)
     async function fetchLiveQuotes() {
       const tickers = portfolioData.map(h => h.ticker).join(',');
       if (!tickers) return false;
       try {
         const res = await fetch(`${API_BASE}/quotes?symbols=${tickers}`);
         const data = await res.json();
-        
-        // API-Fehler anzeigen
         if (!res.ok || data.error) {
           console.error('API Error:', data.error || `HTTP ${res.status}`);
           isLiveMode = false;
           return false;
         }
-        
+
         liveQuotesCache = data.quotes || {};
-        
-        // Pruefen ob Daten zurueckgekommen sind
+        liveSource = data.source || 'unknown';
+
+        // Mindestens 1 Quote erfolgreich?
         const quoteCount = Object.keys(liveQuotesCache).length;
         if (quoteCount === 0) {
-          console.warn('No quotes returned from API. Errors:', data.errors);
+          console.warn('No quotes returned from API');
           isLiveMode = false;
           return false;
         }
@@ -1533,9 +1534,8 @@
           const q = liveQuotesCache[h.ticker];
           if (q && q.price > 0) {
             h.currentPrice = q.price;
-            // API gibt changePercent bereits als Zahl zurueck
             h.dayChange = typeof q.changePercent === 'number' ? q.changePercent : 0;
-            if (q.name && h.name.startsWith('???')) h.name = q.name;
+            if (q.name && q.name !== h.ticker && h.name.startsWith('???')) h.name = q.name;
             updatedCount++;
           }
         });
@@ -1597,7 +1597,9 @@
       const quotesOk = await fetchLiveQuotes();
       renderDashboard();
       if (quotesOk) {
-        showToast('Live-Kurse aktualisiert (Alpha Vantage)');
+        const sourceLabel = liveSource === 'yahoo' ? 'Yahoo Finance' : liveSource === 'mixed' ? 'Yahoo Finance + Alpha Vantage' : 'Alpha Vantage';
+        const quoteCount = Object.keys(liveQuotesCache).length;
+        showToast(`Live-Kurse aktualisiert (${sourceLabel}, ${quoteCount}/${portfolioData.length} Positionen)`);
       } else {
         showToast('Offline-Modus: Pruefe API-Key in Vercel Umgebungsvariablen', 'error');
       }
@@ -1656,7 +1658,7 @@
     // ==========================================
 
     function calcPortfolio() {
-      // Per-Item Werte fuer ALLE Positionen berechnen
+      // Per-Item Werte fuer ALLE Positionen berechnen (inkl. Krypto)
       portfolioData.forEach(h => {
         const value = h.shares * h.currentPrice;
         const invested = h.shares * h.buyPrice;
@@ -1664,11 +1666,12 @@
         h._value = value;
         h._invested = invested;
         h._gain = value - invested;
-        h._gainPct = ((value - invested) / invested) * 100;
+        h._gainPct = invested > 0 ? ((value - invested) / invested) * 100 : 0;
         h._dayChangeAbs = dayChangeAbs;
+        h._weight = 0; // Default fuer nicht-gefilterte Items (z.B. Krypto wenn ausgeblendet)
       });
 
-      // Totals nur aus gefilterten Positionen (Krypto-Filter beachten)
+      // Totals NUR aus gefilterten Positionen (Krypto-Filter beachten)
       const filtered = getFilteredPortfolio();
       let totalValue = 0;
       let totalInvested = 0;
@@ -1680,10 +1683,12 @@
         totalDayChange += h._dayChangeAbs;
       });
 
-      // Gewichtungen fuer alle Positionen neu berechnen (basierend auf gefiltertem Total)
-      portfolioData.forEach(h => {
-        h._weight = totalValue > 0 ? (h._value / totalValue) * 100 : 0;
-      });
+      // Gewichtung nur fuer gefilterte Items berechnen (nicht-gefilterte haben _weight=0)
+      if (totalValue > 0) {
+        filtered.forEach(h => {
+          h._weight = (h._value / totalValue) * 100;
+        });
+      }
 
       // Division durch Null verhindern wenn Portfolio leer ist
       const totalGain = totalValue - totalInvested;
@@ -1730,7 +1735,8 @@
       const modeEl = document.getElementById('modeIndicator');
       const brandTag = document.querySelector('.brand-tag');
       if (isLiveMode) {
-        modeEl.textContent = 'LIVE';
+        const srcTag = liveSource === 'yahoo' ? 'LIVE (Yahoo)' : liveSource === 'mixed' ? 'LIVE (Mixed)' : 'LIVE';
+        modeEl.textContent = srcTag;
         modeEl.className = 'status-indicator live';
         brandTag.textContent = 'LIVE';
         brandTag.style.background = 'var(--green-bg)';
@@ -1784,13 +1790,15 @@
       cryptoBtn.innerHTML = showCrypto ? '&#8383; Krypto ausblenden' : '&#8383; Krypto einblenden';
       cryptoBtn.classList.toggle('btn-active', showCrypto);
 
-      renderPeriodButtons();
-      renderCharts();
-      renderHoldings();
-      renderMovers();
-      renderNews();
-      renderPerformanceTab();
-      renderDailyTab();
+      // Jede Render-Funktion einzeln absichern damit ein Fehler
+      // nicht die restlichen Updates blockiert (z.B. Chart-Fehler)
+      try { renderPeriodButtons(); } catch(e) { console.error('renderPeriodButtons:', e); }
+      try { renderCharts(); } catch(e) { console.error('renderCharts:', e); }
+      try { renderHoldings(); } catch(e) { console.error('renderHoldings:', e); }
+      try { renderMovers(); } catch(e) { console.error('renderMovers:', e); }
+      try { renderNews(); } catch(e) { console.error('renderNews:', e); }
+      try { renderPerformanceTab(); } catch(e) { console.error('renderPerformanceTab:', e); }
+      try { renderDailyTab(); } catch(e) { console.error('renderDailyTab:', e); }
     }
 
     // ==========================================
@@ -3135,7 +3143,7 @@
       const headers = ['Name', 'Ticker', 'Stueck', 'Kaufkurs', 'Aktueller Kurs', 'Wert', 'G/V', 'G/V %', 'Gewicht %', 'Sektor'];
       const rows = portfolioData.map(h => [
         h.name, h.ticker, h.shares, h.buyPrice.toFixed(2), h.currentPrice.toFixed(2),
-        h._value.toFixed(2), h._gain.toFixed(2), h._gainPct.toFixed(2), h._weight.toFixed(2), h.sector
+        (h._value || 0).toFixed(2), (h._gain || 0).toFixed(2), (h._gainPct || 0).toFixed(2), (h._weight || 0).toFixed(2), h.sector || ''
       ]);
 
       const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
