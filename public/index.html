@@ -172,6 +172,16 @@
       border-color: var(--accent-light);
     }
 
+    .btn-active {
+      background: #f9731620;
+      border-color: #f97316;
+      color: #f97316;
+    }
+
+    .btn-active:hover {
+      background: #f9731630;
+    }
+
     .date-display {
       font-size: 0.8125rem;
       color: var(--text-muted);
@@ -1112,6 +1122,7 @@
       <div class="topbar-right">
         <span class="date-display" id="dateDisplay"></span>
         <span class="status-indicator" id="modeIndicator" title="Datenquelle"></span>
+        <button class="btn" id="cryptoToggle" onclick="toggleCrypto()">Krypto einblenden</button>
         <button class="btn" onclick="refreshLiveData()">Aktualisieren</button>
         <button class="btn" onclick="openCsvModal()">CSV Import</button>
         <button class="btn btn-primary" onclick="exportData()">Export</button>
@@ -1145,7 +1156,7 @@
           <div class="kpi-sub" id="kpiUnrealizedPct">--</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Tagesveraenderung</div>
+          <div class="kpi-label">Tages&#228;nderung</div>
           <div class="kpi-value" id="kpiDayChange">--</div>
           <div class="kpi-sub" id="kpiDayChangePct">--</div>
         </div>
@@ -1158,7 +1169,7 @@
 
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab-btn active" data-tab="overview">Uebersicht</button>
+        <button class="tab-btn active" data-tab="overview">&#220;bersicht</button>
         <button class="tab-btn" data-tab="daily">Tagesentwicklung</button>
         <button class="tab-btn" data-tab="holdings">Positionen</button>
         <button class="tab-btn" data-tab="performance">Performance</button>
@@ -1182,7 +1193,7 @@
           </div>
           <div class="panel">
             <div class="panel-header">
-              <span class="panel-title">Allokation</span>
+              <span class="panel-title">Portfolio-Positionen</span>
             </div>
             <div class="chart-container-sm">
               <canvas id="allocationChart"></canvas>
@@ -1214,7 +1225,7 @@
         </div>
         <div class="panel" style="margin-top: 1rem;">
           <div class="panel-header">
-            <span class="panel-title">Tagesuebersicht</span>
+            <span class="panel-title">Tages&#252;bersicht</span>
             <span class="kpi-sub" id="dailySummary">--</span>
           </div>
           <div style="overflow-x: auto;">
@@ -1246,7 +1257,7 @@
               <thead>
                 <tr>
                   <th data-sort="name" class="sorted">Name <span class="sort-arrow">&#9650;</span></th>
-                  <th data-sort="shares" class="text-right">Stueck <span class="sort-arrow">&#9650;</span></th>
+                  <th data-sort="shares" class="text-right">St&#252;ck <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="buyPrice" class="text-right">Kaufkurs <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="currentPrice" class="text-right">Kurs <span class="sort-arrow">&#9650;</span></th>
                   <th data-sort="value" class="text-right">Wert <span class="sort-arrow">&#9650;</span></th>
@@ -1386,6 +1397,21 @@
 
     const sectorColors = {};
 
+    let showCrypto = false; // Krypto standardmaessig ausgeblendet
+
+    function getFilteredPortfolio() {
+      if (showCrypto) return portfolioData;
+      return portfolioData.filter(h => h.sector !== 'Krypto');
+    }
+
+    function toggleCrypto() {
+      showCrypto = !showCrypto;
+      const btn = document.getElementById('cryptoToggle');
+      btn.textContent = showCrypto ? 'Krypto ausblenden' : 'Krypto einblenden';
+      btn.classList.toggle('btn-active', showCrypto);
+      renderDashboard();
+    }
+
     // Portfolio-Startdatum (Wann du angefangen hast zu investieren)
     const PORTFOLIO_START_DATE = new Date('2026-02-10');
 
@@ -1397,10 +1423,10 @@
     // Dein Portfolio (Stand: 20.02.2026)
     let portfolioData = [
       { name: 'Amundi Core MSCI World UCITS ETF', ticker: 'URTH',    isin: 'IE000BI8OT95', wkn: 'ETF146', shares: 10.35, buyPrice: 139.09, currentPrice: 142.66, sector: 'ETF Welt',             dayChange: 0 },
-      { name: 'iShares MSCI EM UCITS ETF (Acc)',  ticker: 'EEM',     isin: 'IE00B4L5YC18', wkn: 'A0RPWJ', shares: 14.51, buyPrice:  48.86, currentPrice:  49.66, sector: 'ETF Schwellenlaender', dayChange: 0 },
+      { name: 'iShares MSCI EM UCITS ETF (Acc)',  ticker: 'EEM',     isin: 'IE00B4L5YC18', wkn: 'A0RPWJ', shares: 14.51, buyPrice:  48.86, currentPrice:  49.66, sector: 'ETF Schwellenl\u00e4nder', dayChange: 0 },
       { name: 'iShares Core S&P 500 UCITS ETF',   ticker: 'SPY',     isin: 'IE00B5BMR087', wkn: 'A0YEDG', shares:  1.13, buyPrice: 620.36, currentPrice: 627.07, sector: 'ETF USA',              dayChange: 0 },
       { name: 'Bitcoin',                           ticker: 'BTC',     isin: '',             wkn: '',        shares:  0.01, buyPrice: 58627.22,currentPrice: 58014.00,sector: 'Krypto',            dayChange: -1.05 },
-      { name: 'Rheinmetall AG',                    ticker: 'RHM.DEX', isin: 'DE0007030009', wkn: '703000', shares:  0.25, buyPrice: 1626.00, currentPrice: 1752.00, sector: 'Ruestung',           dayChange: 0 },
+      { name: 'Rheinmetall AG',                    ticker: 'RHM.DEX', isin: 'DE0007030009', wkn: '703000', shares:  0.25, buyPrice: 1626.00, currentPrice: 1752.00, sector: 'R\u00fcstung',           dayChange: 0 },
       { name: 'Xtrackers Euro Stoxx 50 UCITS ETF', ticker: 'FEZ',    isin: 'LU0380865021', wkn: 'DBX1ET', shares:  3.80, buyPrice: 105.24, currentPrice: 106.48, sector: 'ETF Europa',           dayChange: 0 },
     ];
 
@@ -1411,8 +1437,8 @@
       {
         source: 'Handelsblatt',
         time: 'vor 30 Min.',
-        title: 'Rheinmetall auf Allzeithoch: Ruestungsausgaben in Europa steigen weiter',
-        excerpt: 'Der Duesseldorfer Ruestungskonzern profitiert vom anhaltenden Aufbau der europaeischen Verteidigungsbudgets. Analysten erhoehen die Kursziele auf bis zu 2.100 Euro.',
+        title: 'Rheinmetall auf Allzeithoch: R\u00fcstungsausgaben in Europa steigen weiter',
+        excerpt: 'Der D\u00fcsseldorfer R\u00fcstungskonzern profitiert vom anhaltenden Aufbau der europ\u00e4ischen Verteidigungsbudgets. Analysten erh\u00f6hen die Kursziele auf bis zu 2.100 Euro.',
         tickers: ['RHM.DEX'],
         tag: 'bullish'
       },
@@ -1420,7 +1446,7 @@
         source: 'Bloomberg',
         time: 'vor 1 Std.',
         title: 'Bitcoin unter Druck: Kryptomarkt reagiert auf Fed-Aussagen',
-        excerpt: 'Nach dem zurueckhaltenden Ton der US-Notenbank geraten Kryptowaehrungen unter Verkaufsdruck. Bitcoin faellt unter die 58.000-Dollar-Marke.',
+        excerpt: 'Nach dem zur\u00fcckhaltenden Ton der US-Notenbank geraten Kryptow\u00e4hrungen unter Verkaufsdruck. Bitcoin f\u00e4llt unter die 58.000-Dollar-Marke.',
         tickers: ['BTC'],
         tag: 'bearish'
       },
@@ -1436,7 +1462,7 @@
         source: 'Boerse Online',
         time: 'vor 3 Std.',
         title: 'S&P 500 in der Konsolidierung: Techaktion unter Druck',
-        excerpt: 'Nach der starken Rally der letzten Monate kommen US-Aktien zurueck. Der S&P 500 ETF handelt knapp unter seinen Hochs.',
+        excerpt: 'Nach der starken Rally der letzten Monate kommen US-Aktien zur\u00fcck. Der S&P 500 ETF handelt knapp unter seinen Hochs.',
         tickers: ['SPY'],
         tag: 'neutral'
       },
@@ -1451,8 +1477,8 @@
       {
         source: 'Manager Magazin',
         time: 'vor 5 Std.',
-        title: 'Emerging Markets: China-Stimulus beflügelt Schwellenlaender-ETFs',
-        excerpt: 'Die chinesische Regierung kuendigt ein umfangreiches Konjunkturprogramm an. Schwellenlaender-ETFs wie der iShares MSCI EM legen deutlich zu.',
+        title: 'Emerging Markets: China-Stimulus befl\u00fcgelt Schwellenl\u00e4nder-ETFs',
+        excerpt: 'Die chinesische Regierung k\u00fcndigt ein umfangreiches Konjunkturprogramm an. Schwellenl\u00e4nder-ETFs wie der iShares MSCI EM legen deutlich zu.',
         tickers: ['EEM'],
         tag: 'bullish'
       },
@@ -1610,10 +1636,7 @@
     // ==========================================
 
     function calcPortfolio() {
-      let totalValue = 0;
-      let totalInvested = 0;
-      let totalDayChange = 0;
-
+      // Per-Item Werte fuer ALLE Positionen berechnen
       portfolioData.forEach(h => {
         const value = h.shares * h.currentPrice;
         const invested = h.shares * h.buyPrice;
@@ -1623,12 +1646,21 @@
         h._gain = value - invested;
         h._gainPct = ((value - invested) / invested) * 100;
         h._dayChangeAbs = dayChangeAbs;
-        totalValue += value;
-        totalInvested += invested;
-        totalDayChange += dayChangeAbs;
       });
 
-      portfolioData.forEach(h => {
+      // Totals nur aus gefilterten Positionen (Krypto-Filter beachten)
+      const filtered = getFilteredPortfolio();
+      let totalValue = 0;
+      let totalInvested = 0;
+      let totalDayChange = 0;
+
+      filtered.forEach(h => {
+        totalValue += h._value;
+        totalInvested += h._invested;
+        totalDayChange += h._dayChangeAbs;
+      });
+
+      filtered.forEach(h => {
         h._weight = (h._value / totalValue) * 100;
       });
 
@@ -1644,7 +1676,7 @@
 
     function getSectorBreakdown() {
       const sectors = {};
-      portfolioData.forEach(h => {
+      getFilteredPortfolio().forEach(h => {
         if (!sectors[h.sector]) sectors[h.sector] = 0;
         sectors[h.sector] += h._value;
       });
@@ -1716,8 +1748,8 @@
       kpiDay.className = `kpi-value ${stats.totalDayChange >= 0 ? 'positive' : 'negative'}`;
       document.getElementById('kpiDayChangePct').textContent = formatPct(stats.totalDayChangePct);
 
-      // Anzahl Positionen
-      document.getElementById('kpiDividends').textContent = portfolioData.length;
+      // Anzahl Positionen (gefiltert)
+      document.getElementById('kpiDividends').textContent = getFilteredPortfolio().length;
 
       renderPeriodButtons();
       renderCharts();
@@ -1882,7 +1914,10 @@
               ticks: {
                 color: '#71717a',
                 font: { size: 10 },
-                callback: (v) => (v / 1000).toFixed(0) + 'k',
+                callback: (v) => {
+                  if (v >= 1000) return (v / 1000).toFixed(1).replace('.0', '') + 'k\u202f\u20ac';
+                  return v.toFixed(0) + '\u202f\u20ac';
+                },
               },
               border: { display: false }
             }
@@ -1899,24 +1934,28 @@
       const ctx = document.getElementById('allocationChart').getContext('2d');
       if (allocChart) allocChart.destroy();
 
-      const sectors = getSectorBreakdown();
+      const filtered = getFilteredPortfolio();
+      const positions = [...filtered].sort((a, b) => b._value - a._value);
+      const total = positions.reduce((sum, h) => sum + h._value, 0);
+
+      // Legende mit Positions-Namen
       const sectorList = document.getElementById('sectorList');
-      sectorList.innerHTML = sectors.map((s, i) => `
+      sectorList.innerHTML = positions.map((h, i) => `
         <div class="sector-item">
           <div class="sector-dot" style="background: ${COLORS.sectors[i % COLORS.sectors.length]}"></div>
-          <span class="sector-name">${s.name}</span>
-          <span class="sector-weight">${s.weight.toFixed(1)}%</span>
-          <span class="sector-value">${formatCurrency(s.value)}</span>
+          <span class="sector-name">${h.ticker} \u2013 ${h.name}</span>
+          <span class="sector-weight">${((h._value / total) * 100).toFixed(1)}%</span>
+          <span class="sector-value">${formatCurrency(h._value)}</span>
         </div>
       `).join('');
 
       allocChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: sectors.map(s => s.name),
+          labels: positions.map(h => h.ticker),
           datasets: [{
-            data: sectors.map(s => s.value),
-            backgroundColor: sectors.map((_, i) => COLORS.sectors[i % COLORS.sectors.length]),
+            data: positions.map(h => h._value),
+            backgroundColor: positions.map((_, i) => COLORS.sectors[i % COLORS.sectors.length]),
             borderColor: '#18181b',
             borderWidth: 3,
             hoverBorderColor: '#27272a',
@@ -1936,10 +1975,10 @@
               borderWidth: 1,
               padding: 12,
               callbacks: {
+                title: (items) => positions[items[0].dataIndex].name,
                 label: (ctx) => {
-                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                   const pct = ((ctx.raw / total) * 100).toFixed(1);
-                  return `${ctx.label}: ${formatCurrency(ctx.raw)} (${pct}%)`;
+                  return `${formatCurrency(ctx.raw)} (${pct}%)`;
                 }
               }
             }
@@ -1959,7 +1998,7 @@
       const body = document.getElementById('holdingsBody');
       const search = document.getElementById('searchInput').value.toLowerCase();
 
-      let filtered = portfolioData;
+      let filtered = getFilteredPortfolio();
       if (search) {
         filtered = filtered.filter(h =>
           h.name.toLowerCase().includes(search) ||
@@ -2045,7 +2084,7 @@
 
     function renderMovers() {
       const grid = document.getElementById('moversGrid');
-      const sorted = [...portfolioData].sort((a, b) => Math.abs(b.dayChange) - Math.abs(a.dayChange)).slice(0, 6);
+      const sorted = [...getFilteredPortfolio()].sort((a, b) => Math.abs(b.dayChange) - Math.abs(a.dayChange)).slice(0, 6);
 
       grid.innerHTML = sorted.map(h => {
         const isPositive = h.dayChange >= 0;
@@ -2218,7 +2257,7 @@
       const ctx2 = document.getElementById('monthlyChart').getContext('2d');
       if (monthChart) monthChart.destroy();
 
-      const allMonths = ['Jan', 'Feb', 'Maer', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+      const allMonths = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
       const startMonth = PORTFOLIO_START_DATE.getMonth(); // 0-indexed (Jan=0, Feb=1)
       const startYear = PORTFOLIO_START_DATE.getFullYear();
       const currentMonth = now.getMonth();
@@ -2289,7 +2328,7 @@
 
       const sectors = getSectorBreakdown();
       const sectorReturns = sectors.map(s => {
-        const items = portfolioData.filter(h => h.sector === s.name);
+        const items = getFilteredPortfolio().filter(h => h.sector === s.name);
         const totalGain = items.reduce((sum, h) => sum + h._gain, 0);
         const totalInvested = items.reduce((sum, h) => sum + h._invested, 0);
         return { name: s.name, returnPct: (totalGain / totalInvested) * 100, color: sectorColors[s.name] };
@@ -2819,7 +2858,7 @@
 
       // Tabelle
       const body = document.getElementById('dailyBody');
-      const sorted = [...portfolioData].sort((a, b) => Math.abs(b._dayChangeAbs) - Math.abs(a._dayChangeAbs));
+      const sorted = [...getFilteredPortfolio()].sort((a, b) => Math.abs(b._dayChangeAbs) - Math.abs(a._dayChangeAbs));
 
       let totalDayAbs = 0;
       body.innerHTML = sorted.map(h => {
@@ -2860,6 +2899,7 @@
 
       const chartData = sorted.map(h => ({
         label: h.ticker,
+        fullName: h.name,
         value: h._dayChangeAbs,
         pct: h.dayChange,
       }));
@@ -2880,6 +2920,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          indexAxis: 'y',
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -2889,6 +2930,10 @@
               borderColor: '#27272a',
               borderWidth: 1,
               callbacks: {
+                title: (items) => {
+                  const d = chartData[items[0].dataIndex];
+                  return `${d.label}  –  ${d.fullName}`;
+                },
                 label: (ctx) => {
                   const d = chartData[ctx.dataIndex];
                   return `${(d.value >= 0 ? '+' : '')}${formatCurrency(d.value)} (${formatPct(d.pct)})`;
@@ -2897,17 +2942,17 @@
             }
           },
           scales: {
-            x: {
+            y: {
               grid: { display: false },
-              ticks: { color: '#a1a1aa', font: { size: 11, weight: 600 } },
+              ticks: { color: '#a1a1aa', font: { size: 12, weight: '600' } },
               border: { display: false }
             },
-            y: {
+            x: {
               grid: { color: 'rgba(39, 39, 42, 0.5)', drawBorder: false },
               ticks: {
                 color: '#71717a',
                 font: { size: 10 },
-                callback: (v) => (v >= 0 ? '+' : '') + formatCurrency(v),
+                callback: (v) => (v >= 0 ? '+' : '') + v.toFixed(2) + '\u202f\u20ac',
               },
               border: { display: false }
             }
