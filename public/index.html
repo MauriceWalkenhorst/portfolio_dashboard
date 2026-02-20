@@ -1517,7 +1517,9 @@
           const q = liveQuotesCache[h.ticker];
           if (q) {
             h.currentPrice = q.price;
-            h.dayChange = q.changePercent || 0;
+            // Alpha Vantage gibt changePercent als String mit % zurueck (z.B. "1.2345%")
+            const changePercentStr = q.changePercent || '0';
+            h.dayChange = parseFloat(changePercentStr.toString().replace('%', '')) || 0;
             if (q.name && h.name.startsWith('???')) h.name = q.name;
           }
         });
@@ -1665,13 +1667,20 @@
         h._weight = totalValue > 0 ? (h._value / totalValue) * 100 : 0;
       });
 
+      // Division durch Null verhindern wenn Portfolio leer ist
+      const totalGain = totalValue - totalInvested;
+      const totalGainPct = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
+      const totalDayChangePct = (totalValue - totalDayChange) > 0 
+        ? (totalDayChange / (totalValue - totalDayChange)) * 100 
+        : 0;
+
       return {
         totalValue,
         totalInvested,
-        totalGain: totalValue - totalInvested,
-        totalGainPct: ((totalValue - totalInvested) / totalInvested) * 100,
+        totalGain,
+        totalGainPct,
         totalDayChange,
-        totalDayChangePct: (totalDayChange / (totalValue - totalDayChange)) * 100,
+        totalDayChangePct,
       };
     }
 
@@ -1997,8 +2006,9 @@
     // HOLDINGS TABLE
     // ==========================================
 
-    let sortCol = 'value';
-    let sortDir = -1; // -1 = desc
+    // Initial nach Name sortieren, da _value erst nach calcPortfolio() verfuegbar ist
+    let sortCol = 'name';
+    let sortDir = 1; // 1 = asc (A-Z)
 
     function renderHoldings() {
       const body = document.getElementById('holdingsBody');
@@ -3055,18 +3065,29 @@
 
         const name = cols[headerMap.name] || cols[0] || 'Unbekannt';
         const ticker = cols[headerMap.ticker] || cols[1] || '???';
-        const shares = parseFloat((cols[headerMap.shares] || cols[2] || '0').replace(',', '.'));
-        const buyPrice = parseFloat((cols[headerMap.buyPrice] || cols[3] || '0').replace(',', '.'));
-        const currentPrice = parseFloat((cols[headerMap.currentPrice] || cols[4] || cols[3] || '0').replace(',', '.'));
+        
+        // CSV-Werte parsen mit Validierung
+        const sharesRaw = (cols[headerMap.shares] || cols[2] || '0').replace(',', '.');
+        const buyPriceRaw = (cols[headerMap.buyPrice] || cols[3] || '0').replace(',', '.');
+        const currentPriceRaw = (cols[headerMap.currentPrice] || cols[4] || cols[3] || '0').replace(',', '.');
+        
+        const shares = parseFloat(sharesRaw);
+        const buyPrice = parseFloat(buyPriceRaw);
+        const currentPrice = parseFloat(currentPriceRaw);
         const sector = cols[headerMap.sector] || cols[5] || 'Sonstige';
 
-        if (shares > 0 && (buyPrice > 0 || currentPrice > 0)) {
+        // Validierung: Ungueltige Zahlen (NaN) oder nicht-positive Werte ablehnen
+        const isValidShares = !isNaN(shares) && shares > 0;
+        const isValidBuyPrice = !isNaN(buyPrice) && buyPrice >= 0;
+        const isValidCurrentPrice = !isNaN(currentPrice) && currentPrice >= 0;
+        
+        if (isValidShares && (isValidBuyPrice || isValidCurrentPrice)) {
           result.push({
             name,
             ticker,
             shares,
-            buyPrice: buyPrice || currentPrice,
-            currentPrice: currentPrice || buyPrice,
+            buyPrice: isValidBuyPrice ? buyPrice : currentPrice,
+            currentPrice: isValidCurrentPrice ? currentPrice : buyPrice,
             sector,
             dayChange: (Math.random() * 4 - 1.5)
           });
