@@ -37,9 +37,13 @@ export default async function handler(req, res) {
   const results = {};
   const errors = [];
   
+  console.log(`Fetching quotes for: ${symbols.join(', ')}`);
+  
   for (const sym of symbols) {
     try {
       const data = await avFetch({ function: 'GLOBAL_QUOTE', symbol: sym });
+      console.log(`Response for ${sym}:`, JSON.stringify(data).slice(0, 200));
+      
       const q = data['Global Quote'];
       if (q && q['05. price']) {
         results[sym] = {
@@ -53,13 +57,15 @@ export default async function handler(req, res) {
           volume: parseInt(q['06. volume']),
           name: sym,
         };
+        console.log(`✓ ${sym}: $${results[sym].price}`);
       } else {
+        console.warn(`✗ ${sym}: No price data in response`);
         errors.push(`${sym}: No data returned`);
       }
       // Alpha Vantage Free Tier: max 5 calls per minute, 500 per day
       if (symbols.length > 1) await new Promise(r => setTimeout(r, 250));
     } catch (e) {
-      console.error(`Quote failed for ${sym}:`, e.message);
+      console.error(`✗ Quote failed for ${sym}:`, e.message);
       errors.push(`${sym}: ${e.message}`);
     }
   }
