@@ -1601,7 +1601,7 @@
         const quoteCount = Object.keys(liveQuotesCache).length;
         showToast(`Live-Kurse aktualisiert (${sourceLabel}, ${quoteCount}/${portfolioData.length} Positionen)`);
       } else {
-        showToast('Offline-Modus: Pruefe API-Key in Vercel Umgebungsvariablen', 'error');
+        showToast('Offline-Modus: Demo-Daten werden angezeigt');
       }
       // Fetch news in the background
       fetchLiveNews().then(ok => {

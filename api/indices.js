@@ -26,33 +26,42 @@ const AV_DAYS_MAP = { '1M': 30, '3M': 90, '6M': 180, '1J': 365, '3J': 1095, 'MAX
 // Yahoo Finance: Historische Daten fuer einen Index
 async function fetchYahooIndex(symbol, period) {
   const p = YAHOO_PERIOD_MAP[period] || YAHOO_PERIOD_MAP['6M'];
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
-  const resp = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PortfolioDashboard/1.0)' },
-  });
-  if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`);
-  const json = await resp.json();
-  const result = json.chart && json.chart.result && json.chart.result[0];
-  if (!result || !result.timestamp) throw new Error('No Yahoo data');
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+  let lastErr;
+  for (const host of hosts) {
+    try {
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      });
+      if (!resp.ok) { lastErr = new Error(`Yahoo ${host} HTTP ${resp.status}`); continue; }
+      const json = await resp.json();
+      const result = json.chart && json.chart.result && json.chart.result[0];
+      if (!result || !result.timestamp) { lastErr = new Error(`No data from ${host}`); continue; }
 
-  const timestamps = result.timestamp;
-  const closes = result.indicators.quote[0].close;
+      const timestamps = result.timestamp;
+      const closes = result.indicators.quote[0].close;
 
-  const points = timestamps
-    .map((ts, i) => ({
-      date: new Date(ts * 1000).toISOString().slice(0, 10),
-      close: closes[i],
-    }))
-    .filter(d => d.close != null);
+      const points = timestamps
+        .map((ts, i) => ({
+          date: new Date(ts * 1000).toISOString().slice(0, 10),
+          close: closes[i],
+        }))
+        .filter(d => d.close != null);
 
-  if (points.length === 0) throw new Error('No data points');
+      if (points.length === 0) { lastErr = new Error('No data points'); continue; }
 
-  const base = points[0].close;
-  return points.map(d => ({
-    date: d.date,
-    close: d.close,
-    returnPct: ((d.close - base) / base) * 100,
-  }));
+      const base = points[0].close;
+      return points.map(d => ({
+        date: d.date,
+        close: d.close,
+        returnPct: ((d.close - base) / base) * 100,
+      }));
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Yahoo Finance index unavailable');
 }
 
 // Alpha Vantage Fallback
