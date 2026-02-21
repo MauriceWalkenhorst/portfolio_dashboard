@@ -1,16 +1,19 @@
-// Yahoo Finance als Primary, Alpha Vantage als Backup
+// Datenquellen: CoinGecko (Krypto), Yahoo Finance (Aktien/ETFs), Alpha Vantage (Fallback)
 const AV_KEY = process.env.ALPHAVANTAGE_KEY;
 const AV_BASE = 'https://www.alphavantage.co/query';
 
-// Ticker-Mapping fuer Yahoo Finance
-function toYahooSymbol(ticker) {
-  if (ticker.includes('-') || ticker.includes('.')) return ticker;
-  const cryptoMap = { BTC: 'BTC-USD', ETH: 'ETH-USD', SOL: 'SOL-USD', ADA: 'ADA-USD', XRP: 'XRP-USD', DOT: 'DOT-USD', DOGE: 'DOGE-USD' };
-  if (cryptoMap[ticker]) return cryptoMap[ticker];
-  return ticker;
-}
+// CoinGecko ID-Mapping
+const COINGECKO_IDS = {
+  'BTC': 'bitcoin',  'BTC-EUR': 'bitcoin',  'BTC-USD': 'bitcoin',
+  'ETH': 'ethereum', 'ETH-EUR': 'ethereum', 'ETH-USD': 'ethereum',
+  'SOL': 'solana',   'SOL-EUR': 'solana',   'SOL-USD': 'solana',
+  'ADA': 'cardano',  'ADA-EUR': 'cardano',  'ADA-USD': 'cardano',
+  'XRP': 'ripple',   'XRP-EUR': 'ripple',   'XRP-USD': 'ripple',
+  'DOT': 'polkadot', 'DOT-EUR': 'polkadot', 'DOT-USD': 'polkadot',
+  'DOGE': 'dogecoin','DOGE-EUR':'dogecoin', 'DOGE-USD':'dogecoin',
+};
 
-// Perioden-Mapping: Dashboard-Perioden → Yahoo Finance range + interval
+// Perioden-Mapping
 const YAHOO_PERIOD_MAP = {
   '1W':  { range: '5d',  interval: '1d' },
   '1M':  { range: '1mo', interval: '1d' },
@@ -21,18 +24,44 @@ const YAHOO_PERIOD_MAP = {
   'MAX': { range: 'max',  interval: '1mo' },
 };
 
+const GECKO_DAYS_MAP = { '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1J': 365, '3J': 1095, 'MAX': 'max' };
 const AV_DAYS_MAP = { '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1J': 365, '3J': 1095, 'MAX': 3650 };
 
+// CoinGecko Krypto-Historie
+async function fetchCoinGeckoHistory(ticker, period) {
+  const geckoId = COINGECKO_IDS[ticker];
+  if (!geckoId) throw new Error(`No CoinGecko ID for ${ticker}`);
+  const cur = ticker.endsWith('-USD') ? 'usd' : 'eur';
+  const days = GECKO_DAYS_MAP[period] || 180;
+  const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=${cur}&days=${days}&interval=daily`;
+  const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!resp.ok) throw new Error(`CoinGecko HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (!data.prices || data.prices.length === 0) throw new Error('No CoinGecko history data');
+
+  return data.prices.map(([ts, price]) => ({
+    date: new Date(ts).toISOString().slice(0, 10),
+    open: price,
+    high: price,
+    low: price,
+    close: price,
+    volume: 0,
+  }));
+}
+
+// Yahoo Finance v8 Chart History
 async function fetchYahooHistory(ticker, period) {
-  const yahooSym = toYahooSymbol(ticker);
   const p = YAHOO_PERIOD_MAP[period] || YAHOO_PERIOD_MAP['6M'];
   const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
   let lastErr;
   for (const host of hosts) {
     try {
-      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(yahooSym)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${p.interval}&range=${p.range}&includePrePost=false`;
       const resp = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        },
       });
       if (!resp.ok) { lastErr = new Error(`Yahoo ${host} HTTP ${resp.status}`); continue; }
       const json = await resp.json();
@@ -57,8 +86,9 @@ async function fetchYahooHistory(ticker, period) {
   throw lastErr || new Error('Yahoo Finance history unavailable');
 }
 
+// Alpha Vantage Fallback
 async function fetchAvHistory(ticker, period) {
-  if (!AV_KEY) throw new Error('No AV key');
+  if (!AV_KEY) throw new Error('No AV key configured');
   const isLong = ['1J', '3J', 'MAX'].includes(period);
   const fn = isLong ? 'TIME_SERIES_WEEKLY' : 'TIME_SERIES_DAILY';
   const seriesKey = isLong ? 'Weekly Time Series' : 'Time Series (Daily)';
@@ -97,18 +127,33 @@ export default async function handler(req, res) {
   const { symbol, period = '6M' } = req.query;
   if (!symbol) return res.status(400).json({ error: 'symbol required' });
 
+  // Krypto: CoinGecko zuerst
+  if (COINGECKO_IDS[symbol]) {
+    try {
+      const data = await fetchCoinGeckoHistory(symbol, period);
+      return res.json({ symbol, period, data, source: 'coingecko' });
+    } catch (geckoErr) {
+      console.warn(`CoinGecko history failed for ${symbol}: ${geckoErr.message}`);
+      // Fallthrough zu Yahoo
+    }
+  }
+
+  // Aktien/ETFs + Krypto-Fallback: Yahoo Finance
   try {
-    // Yahoo Finance zuerst
     const data = await fetchYahooHistory(symbol, period);
     return res.json({ symbol, period, data, source: 'yahoo' });
   } catch (yahooErr) {
-    console.warn(`Yahoo history failed for ${symbol}: ${yahooErr.message}, trying AV...`);
+    console.warn(`Yahoo history failed for ${symbol}: ${yahooErr.message}`);
     try {
       const data = await fetchAvHistory(symbol, period);
       return res.json({ symbol, period, data, source: 'alphavantage' });
     } catch (avErr) {
-      console.warn(`AV history also failed for ${symbol}: ${avErr.message}`);
-      return res.status(500).json({ error: `Both sources failed: ${yahooErr.message} / ${avErr.message}` });
+      console.warn(`All sources failed for ${symbol}`);
+      return res.status(500).json({
+        error: `Keine Historiedaten verfuegbar: ${yahooErr.message}`,
+        symbol,
+        period,
+      });
     }
   }
 }
