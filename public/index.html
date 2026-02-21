@@ -1801,7 +1801,7 @@
       const modeEl = document.getElementById('modeIndicator');
       const brandTag = document.querySelector('.brand-tag');
       if (isLiveMode) {
-        const srcTag = liveSource === 'yahoo' ? 'LIVE (Yahoo)' : liveSource === 'mixed' ? 'LIVE (Mixed)' : 'LIVE';
+        const srcTag = liveSource ? `LIVE (${liveSource})` : 'LIVE';
         modeEl.textContent = srcTag;
         modeEl.className = 'status-indicator live';
         brandTag.textContent = 'LIVE';
