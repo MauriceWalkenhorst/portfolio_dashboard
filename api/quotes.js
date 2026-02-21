@@ -87,9 +87,12 @@ async function getYahooCrumb() {
 async function fetchYahooWithCrumb(tickers) {
   const { crumb, cookieStr } = await getYahooCrumb();
 
+  // EURUSD=X immer mitanfragen, um USD-Kurse in EUR umzurechnen
+  const allSymbols = [...tickers, 'EURUSD=X'];
+
   const url =
     `https://query1.finance.yahoo.com/v7/finance/quote` +
-    `?symbols=${tickers.map(encodeURIComponent).join(',')}` +
+    `?symbols=${allSymbols.map(encodeURIComponent).join(',')}` +
     `&crumb=${encodeURIComponent(crumb)}` +
     `&lang=en-US&region=US&formatted=false&corsDomain=finance.yahoo.com`;
 
@@ -99,24 +102,56 @@ async function fetchYahooWithCrumb(tickers) {
   if (!resp.ok) throw new Error(`Yahoo v7 HTTP ${resp.status}`);
 
   const data = await resp.json();
+  const allResults = data.quoteResponse?.result || [];
+
+  // EUR/USD-Kurs extrahieren (1 EUR = X USD → zum Umrechnen durch X dividieren)
+  const fxQuote = allResults.find(q => q.symbol === 'EURUSD=X');
+  const eurUsd = fxQuote?.regularMarketPrice || 1.05; // Fallback falls nicht verfuegbar
+
   const results = {};
-  for (const q of (data.quoteResponse?.result || [])) {
+  for (const q of allResults) {
+    if (q.symbol === 'EURUSD=X') continue;
     if (!q.regularMarketPrice) continue;
-    // Yahoo-Symbol → Portfolio-Ticker mappen (Symbole koennen abweichen)
+
+    // Yahoo-Symbol → Portfolio-Ticker mappen
     const key = tickers.find(t => t.toUpperCase() === q.symbol.toUpperCase()) || q.symbol;
+
+    // USD-Kurse in EUR umrechnen (teile durch EUR/USD-Rate)
+    const isUsd = q.currency === 'USD';
+    const fx = isUsd ? 1 / eurUsd : 1;
+
     results[key] = {
-      price:         q.regularMarketPrice,
-      previousClose: q.regularMarketPreviousClose || q.regularMarketPrice,
-      change:        q.regularMarketChange        || 0,
-      changePercent: q.regularMarketChangePercent || 0,
-      dayHigh:       q.regularMarketDayHigh       || q.regularMarketPrice,
-      dayLow:        q.regularMarketDayLow        || q.regularMarketPrice,
-      volume:        q.regularMarketVolume        || 0,
-      name:          q.shortName || q.longName    || q.symbol,
+      price:         q.regularMarketPrice          * fx,
+      previousClose: (q.regularMarketPreviousClose || q.regularMarketPrice) * fx,
+      change:        (q.regularMarketChange        || 0) * fx,
+      changePercent: q.regularMarketChangePercent  || 0,   // % bleibt gleich
+      dayHigh:       (q.regularMarketDayHigh       || q.regularMarketPrice) * fx,
+      dayLow:        (q.regularMarketDayLow        || q.regularMarketPrice) * fx,
+      volume:        q.regularMarketVolume         || 0,
+      name:          q.shortName || q.longName     || q.symbol,
+      currency:      isUsd ? 'USD→EUR' : (q.currency || 'EUR'),
       source: 'yahoo',
     };
   }
-  return results;
+  // eurUsd mitgeben damit Stooq-Fallback denselben Kurs verwenden kann
+  return { results, eurUsd };
+}
+
+// EUR/USD-Kurs ohne Authentifizierung holen (fuer Stooq-Fallback)
+async function fetchEurUsd() {
+  try {
+    const resp = await fetch(
+      'https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d',
+      { headers: { 'User-Agent': UA } }
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const rate = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (rate && rate > 0.5 && rate < 2.5) return rate;
+  } catch (e) {
+    console.warn('EUR/USD-Abruf fehlgeschlagen, verwende Fallback 1.05:', e.message);
+  }
+  return 1.05; // vernuenftiger Standardwert
 }
 
 // ── 3. Stooq-Fallback ─────────────────────────────────────────────────────
@@ -127,7 +162,7 @@ function toStooqSym(ticker) {
   return t + '.us';                   // URTH → urth.us
 }
 
-async function fetchStooqQuote(ticker) {
+async function fetchStooqQuote(ticker, eurUsd = 1.05) {
   const sym = toStooqSym(ticker);
   const url = `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcvn&e=json`;
 
@@ -138,17 +173,22 @@ async function fetchStooqQuote(ticker) {
   const s = data.symbols?.[0];
   if (!s || !s.c || s.c === 'N/D') throw new Error('Keine Stooq-Daten');
 
-  const price = parseFloat(s.c);
-  const open  = parseFloat(s.o) || price;
+  // US-Ticker (Suffix .us) werden von Stooq in USD zurueckgegeben → in EUR umrechnen
+  const isUsd = sym.endsWith('.us');
+  const fx = isUsd ? 1 / eurUsd : 1;
+
+  const price = parseFloat(s.c) * fx;
+  const open  = (parseFloat(s.o) || parseFloat(s.c)) * fx;
   return {
     price,
     previousClose: open,
     change:        price - open,
     changePercent: open ? ((price - open) / open) * 100 : 0,
-    dayHigh:       parseFloat(s.h) || price,
-    dayLow:        parseFloat(s.l) || price,
+    dayHigh:       parseFloat(s.h) * fx || price,
+    dayLow:        parseFloat(s.l) * fx || price,
     volume:        parseInt(s.v)   || 0,
     name:          s.n || ticker,
+    currency:      isUsd ? 'USD→EUR' : 'EUR',
     source: 'stooq',
   };
 }
@@ -181,14 +221,19 @@ export default async function handler(req, res) {
   // 2. Aktien/ETFs: Yahoo v7+Crumb, dann Stooq als Fallback
   if (stockTickers.length > 0) {
     let yahooOk = false;
+    let eurUsd   = 1.05; // Standardwert, wird durch Yahoo oder separaten Abruf ersetzt
+
     try {
-      const yahooResults = await fetchYahooWithCrumb(stockTickers);
+      const { results: yahooResults, eurUsd: rate } = await fetchYahooWithCrumb(stockTickers);
       Object.assign(results, yahooResults);
-      yahooOk = true;
-      console.log(`Yahoo v7+Crumb: ${Object.keys(yahooResults).length}/${stockTickers.length} Kurse`);
+      eurUsd   = rate;
+      yahooOk  = true;
+      console.log(`Yahoo v7+Crumb: ${Object.keys(yahooResults).length}/${stockTickers.length} Kurse | EUR/USD: ${eurUsd.toFixed(4)}`);
     } catch (e) {
       errors.push(`Yahoo: ${e.message}`);
       console.warn('Yahoo v7+Crumb fehlgeschlagen:', e.message);
+      // EUR/USD separat holen damit Stooq korrekt konvertieren kann
+      eurUsd = await fetchEurUsd();
     }
 
     // Stooq fuer alle Ticker die Yahoo nicht lieferte (oder Yahoo komplett fehlschlug)
@@ -198,7 +243,7 @@ export default async function handler(req, res) {
 
     for (const t of needStooq) {
       try {
-        results[t] = await fetchStooqQuote(t);
+        results[t] = await fetchStooqQuote(t, eurUsd);
       } catch (e) {
         errors.push(`Stooq(${t}): ${e.message}`);
         console.warn(`Stooq fehlgeschlagen fuer ${t}:`, e.message);
