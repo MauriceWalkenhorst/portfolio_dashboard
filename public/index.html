@@ -1515,6 +1515,24 @@
       'DOGE': ['dogecoin','eur'], 'DOGE-EUR': ['dogecoin','eur'], 'DOGE-USD': ['dogecoin','usd'],
     };
 
+    // EUR/USD-Kurs fuer Waehrungsumrechnung (wird gecacht)
+    let _eurUsdCache = null;
+    async function getEurUsd() {
+      if (_eurUsdCache) return _eurUsdCache;
+      try {
+        const resp = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/EURUSD%3DX?interval=1d&range=1d');
+        if (resp.ok) {
+          const json = await resp.json();
+          const rate = json.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if (rate && rate > 0.5 && rate < 2.5) {
+            _eurUsdCache = rate;
+            return rate;
+          }
+        }
+      } catch (e) { /* ignore */ }
+      return (_eurUsdCache = 1.05); // Fallback
+    }
+
     // Einzelnen Kurs direkt von Yahoo Finance Chart-API abrufen (Browser-IP, nicht Vercel)
     async function fetchYahooDirect(ticker) {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d&includePrePost=false`;
@@ -1523,12 +1541,18 @@
       const json = await resp.json();
       const m = json.chart?.result?.[0]?.meta;
       if (!m) throw new Error('No Yahoo data');
-      const prevClose = m.chartPreviousClose || m.previousClose || m.regularMarketPrice;
-      const price = m.regularMarketPrice;
+
+      // USD-Kurse in EUR umrechnen
+      const isUsd = m.currency === 'USD';
+      const fx = isUsd ? 1 / (await getEurUsd()) : 1;
+
+      const rawPrice = m.regularMarketPrice;
+      const rawPrev  = m.chartPreviousClose || m.previousClose || rawPrice;
       return {
-        price,
-        changePercent: prevClose ? ((price - prevClose) / prevClose) * 100 : 0,
-        name: m.shortName || m.longName || ticker,
+        price:         rawPrice * fx,
+        changePercent: rawPrev ? ((rawPrice - rawPrev) / rawPrev) * 100 : 0,
+        name:          m.shortName || m.longName || ticker,
+        currency:      isUsd ? 'USD→EUR' : (m.currency || 'EUR'),
         source: 'yahoo',
       };
     }
@@ -1801,7 +1825,7 @@
       const modeEl = document.getElementById('modeIndicator');
       const brandTag = document.querySelector('.brand-tag');
       if (isLiveMode) {
-        const srcTag = liveSource === 'yahoo' ? 'LIVE (Yahoo)' : liveSource === 'mixed' ? 'LIVE (Mixed)' : 'LIVE';
+        const srcTag = liveSource ? `LIVE (${liveSource})` : 'LIVE';
         modeEl.textContent = srcTag;
         modeEl.className = 'status-indicator live';
         brandTag.textContent = 'LIVE';
@@ -2662,7 +2686,10 @@
       const stats = activeBenchmarks.map(b => {
         const data = b._data || [];
         const totalReturn = data.length > 0 ? data[data.length - 1] : 0;
-        const annualized = data.length > 252 ? totalReturn / (days / 365) : totalReturn * (365 / days);
+        // Korrekte Compound-Annualisierung: (1 + r)^(365/days) - 1
+        const annualized = days > 0
+          ? (Math.pow(1 + totalReturn / 100, 365 / days) - 1) * 100
+          : 0;
 
         // Volatility (std dev of daily returns)
         const dailyReturns = [];
@@ -3181,7 +3208,7 @@
             buyPrice: isValidBuyPrice ? buyPrice : currentPrice,
             currentPrice: isValidCurrentPrice ? currentPrice : buyPrice,
             sector,
-            dayChange: (Math.random() * 4 - 1.5)
+            dayChange: 0
           });
         }
       }
