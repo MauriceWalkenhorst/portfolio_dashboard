@@ -1502,52 +1502,119 @@
     let liveIndicesCache = {};
     let liveNewsCache = [];
 
-    let liveSource = ''; // 'yahoo', 'alphavantage', 'mixed'
+    let liveSource = '';
 
-    // Fetch live quotes (Yahoo Finance primary, Alpha Vantage backup)
+    // CoinGecko-Mapping fuer Krypto-Ticker (CORS-erlaubt im Browser)
+    const GECKO_IDS = {
+      'BTC': ['bitcoin','eur'],   'BTC-EUR': ['bitcoin','eur'],   'BTC-USD': ['bitcoin','usd'],
+      'ETH': ['ethereum','eur'],  'ETH-EUR': ['ethereum','eur'],  'ETH-USD': ['ethereum','usd'],
+      'SOL': ['solana','eur'],    'SOL-EUR': ['solana','eur'],    'SOL-USD': ['solana','usd'],
+      'ADA': ['cardano','eur'],   'ADA-EUR': ['cardano','eur'],   'ADA-USD': ['cardano','usd'],
+      'XRP': ['ripple','eur'],    'XRP-EUR': ['ripple','eur'],    'XRP-USD': ['ripple','usd'],
+      'DOT': ['polkadot','eur'],  'DOT-EUR': ['polkadot','eur'],  'DOT-USD': ['polkadot','usd'],
+      'DOGE': ['dogecoin','eur'], 'DOGE-EUR': ['dogecoin','eur'], 'DOGE-USD': ['dogecoin','usd'],
+    };
+
+    // Einzelnen Kurs direkt von Yahoo Finance Chart-API abrufen (Browser-IP, nicht Vercel)
+    async function fetchYahooDirect(ticker) {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d&includePrePost=false`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`);
+      const json = await resp.json();
+      const m = json.chart?.result?.[0]?.meta;
+      if (!m) throw new Error('No Yahoo data');
+      const prevClose = m.chartPreviousClose || m.previousClose || m.regularMarketPrice;
+      const price = m.regularMarketPrice;
+      return {
+        price,
+        changePercent: prevClose ? ((price - prevClose) / prevClose) * 100 : 0,
+        name: m.shortName || m.longName || ticker,
+        source: 'yahoo',
+      };
+    }
+
+    // Live-Kurse direkt im Browser holen (kein Vercel-Server-Blocking)
     async function fetchLiveQuotes() {
-      const tickers = portfolioData.map(h => h.ticker).join(',');
-      if (!tickers) return false;
-      try {
-        const res = await fetch(`${API_BASE}/quotes?symbols=${tickers}`);
-        const data = await res.json();
-        if (!res.ok || data.error) {
-          console.error('API Error:', data.error || `HTTP ${res.status}`);
-          isLiveMode = false;
-          return false;
+      const tickers = portfolioData.map(h => h.ticker);
+      if (tickers.length === 0) return false;
+
+      const results = {};
+      const cryptoTickers = tickers.filter(t => GECKO_IDS[t]);
+      const stockTickers  = tickers.filter(t => !GECKO_IDS[t]);
+
+      // ── 1. Krypto via CoinGecko (CORS erlaubt, kein API-Key) ──────────────
+      if (cryptoTickers.length > 0) {
+        try {
+          const geckoIds   = [...new Set(cryptoTickers.map(t => GECKO_IDS[t][0]))];
+          const currencies = [...new Set(cryptoTickers.map(t => GECKO_IDS[t][1]))].join(',');
+          const url = `https://api.coingecko.com/api/v3/simple/price?ids=${geckoIds.join(',')}&vs_currencies=${currencies}&include_24hr_change=true`;
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const data = await resp.json();
+            cryptoTickers.forEach(ticker => {
+              const [id, cur] = GECKO_IDS[ticker];
+              if (data[id]?.[cur] != null) {
+                results[ticker] = {
+                  price: data[id][cur],
+                  changePercent: data[id][`${cur}_24h_change`] || 0,
+                  source: 'coingecko',
+                };
+              }
+            });
+            console.log(`CoinGecko: ${Object.keys(results).length}/${cryptoTickers.length} Krypto-Kurse`);
+          }
+        } catch (e) {
+          console.warn('CoinGecko direkt fehlgeschlagen:', e.message);
         }
+      }
 
-        liveQuotesCache = data.quotes || {};
-        liveSource = data.source || 'unknown';
-
-        // Mindestens 1 Quote erfolgreich?
-        const quoteCount = Object.keys(liveQuotesCache).length;
-        if (quoteCount === 0) {
-          console.warn('No quotes returned from API');
-          isLiveMode = false;
-          return false;
-        }
-
-        // Update portfolioData with real prices
-        let updatedCount = 0;
-        portfolioData.forEach(h => {
-          const q = liveQuotesCache[h.ticker];
-          if (q && q.price > 0) {
-            h.currentPrice = q.price;
-            h.dayChange = typeof q.changePercent === 'number' ? q.changePercent : 0;
-            if (q.name && q.name !== h.ticker && h.name.startsWith('???')) h.name = q.name;
-            updatedCount++;
+      // ── 2. Aktien/ETFs via Yahoo Finance (Browser-IP, nicht Vercel) ────────
+      if (stockTickers.length > 0) {
+        const stockJobs = stockTickers.map(async ticker => {
+          try {
+            const q = await fetchYahooDirect(ticker);
+            results[ticker] = q;
+          } catch (e) {
+            console.warn(`Yahoo direkt fehlgeschlagen fuer ${ticker}:`, e.message);
           }
         });
-        
-        console.log(`Updated ${updatedCount}/${portfolioData.length} positions from live data`);
-        isLiveMode = updatedCount > 0;
-        return isLiveMode;
-      } catch (err) {
-        console.error('Live quotes fetch failed:', err.message);
-        isLiveMode = false;
-        return false;
+        await Promise.all(stockJobs);
+
+        // Fallback: Server-API fuer Ticker die Yahoo nicht lieferte
+        const failed = stockTickers.filter(t => !results[t]);
+        if (failed.length > 0) {
+          try {
+            const res = await fetch(`${API_BASE}/quotes?symbols=${failed.join(',')}`);
+            if (res.ok) {
+              const data = await res.json();
+              Object.assign(results, data.quotes || {});
+              console.log(`Server-Fallback: ${Object.keys(data.quotes || {}).length} weitere Kurse`);
+            }
+          } catch (e) {
+            console.warn('Server-Fallback fehlgeschlagen:', e.message);
+          }
+        }
       }
+
+      liveQuotesCache = results;
+      const sources = [...new Set(Object.values(results).map(q => q.source).filter(Boolean))];
+      liveSource = sources.join('+') || 'unbekannt';
+
+      // Portfoliopositionen aktualisieren
+      let updatedCount = 0;
+      portfolioData.forEach(h => {
+        const q = liveQuotesCache[h.ticker];
+        if (q && q.price > 0) {
+          h.currentPrice = q.price;
+          h.dayChange = typeof q.changePercent === 'number' ? q.changePercent : 0;
+          if (q.name && q.name !== h.ticker && h.name.startsWith('???')) h.name = q.name;
+          updatedCount++;
+        }
+      });
+
+      console.log(`Live-Kurse: ${updatedCount}/${portfolioData.length} Positionen aktualisiert (${liveSource})`);
+      isLiveMode = updatedCount > 0;
+      return isLiveMode;
     }
 
     // Fetch index history data for comparison tab
@@ -1597,11 +1664,10 @@
       const quotesOk = await fetchLiveQuotes();
       renderDashboard();
       if (quotesOk) {
-        const sourceLabel = liveSource === 'yahoo' ? 'Yahoo Finance' : liveSource === 'mixed' ? 'Yahoo Finance + Alpha Vantage' : 'Alpha Vantage';
         const quoteCount = Object.keys(liveQuotesCache).length;
-        showToast(`Live-Kurse aktualisiert (${sourceLabel}, ${quoteCount}/${portfolioData.length} Positionen)`);
+        showToast(`Live-Kurse aktualisiert (${liveSource}, ${quoteCount}/${portfolioData.length} Positionen)`);
       } else {
-        showToast('Offline-Modus: Demo-Daten werden angezeigt');
+        showToast('Keine Live-Kurse verfügbar – Demo-Daten werden angezeigt', 'error');
       }
       // Fetch news in the background
       fetchLiveNews().then(ok => {
